@@ -1,0 +1,12 @@
+[
+    {
+        "stage": "dev",
+        "cluster_name": "aks-dev-gwc-001",
+        "resource_group": "dev-rg-gwc"
+    },
+    {
+        "stage": "prod",
+        "cluster_name": "aks-prod-gwc-001",
+        "resource_group": "prod-rg-gwc"
+    }
+]

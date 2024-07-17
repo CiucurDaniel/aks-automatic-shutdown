@@ -1,0 +1,104 @@
+resources:
+- name: az-developer-tools
+  type: registry-image
+  source:
+    repository: bitnami/azure-cli
+
+- name: aks-automatic-shutdown-git
+  type: git
+  source:
+    uri: https://github.com/CiucurDaniel/aks-automatic-shutdown
+    paths: 
+    - automatic-cluster-shutdown
+    - task-scripts/automatic-cluster-shutdown
+
+- name: morning-automatic-trigger
+  type: time
+  icon: clock-outline
+  source:
+    days: [Monday, Tuesday, Wednesday, Thursday, Friday]
+    start: 6:00
+    stop: 6:20
+    location: Europe/Berlin
+
+- name: evening-automatic-trigger
+  type: time
+  icon: clock-outline
+  source:
+    days: [Tuesday, Wednesday, Thursday, Friday, Saturday]
+    start: 0:00
+    stop: 0:20
+    location: Europe/Berlin
+
+jobs:
+- name: shut-down-cluster
+  plan:
+  - in_parallel:
+      limit: 4
+      fail_fast: true
+      steps:
+      - get: az-developer-tools
+      - get: aks-automatic-shutdown-git
+        trigger: false # keep trigger manual, don't want to accidentaly stop cluster while people are working
+      - get: evening-automatic-trigger
+        trigger: true
+
+  - task: shut-down-cluster
+    image: az-developer-tools
+    config:
+      platform: linux
+      inputs:
+      - name: aks-automatic-shutdown-git
+      outputs:
+      params:
+        ARM_CLIENT_ID: ((az-service-principal))
+        ARM_CLIENT_SECRET: ((az-service-password))
+        ARM_TENANT_ID: ((az-tenant))
+        ARM_SUBSCRIPTION_ID: ((az-subscription-id))
+        CLUSTER_NAME: ((CLUSTER_NAME))
+        RESOURCE_GROUP: ((RESOURCE_GROUP))
+      run:
+        path: bash
+        args: 
+        - -c
+        - |
+          cd aks-automatic-shutdown-git/task-scripts/automatic-cluster-shutdown
+          chmod +x change_cluster_state.sh
+          ./change_cluster_state.sh stop
+
+
+- name: start-cluster
+  plan:
+  - in_parallel:
+      limit: 4
+      fail_fast: true
+      steps:
+      - get: az-developer-tools
+      - get: aks-automatic-shutdown-git
+        trigger: false # keep trigger manual, don't want to accidentaly stop cluster while people are working
+      - get: morning-automatic-trigger
+        trigger: true
+
+  - task: start-cluster
+    image: az-developer-tools
+    config:
+      platform: linux
+      inputs:
+      - name: aks-automatic-shutdown-git
+      outputs:
+      params:
+        ARM_CLIENT_ID: ((az-service-principal))
+        ARM_CLIENT_SECRET: ((az-service-password))
+        ARM_TENANT_ID: ((az-tenant))
+        ARM_SUBSCRIPTION_ID: ((az-subscription-id))
+        CLUSTER_NAME: ((CLUSTER_NAME))
+        RESOURCE_GROUP: ((RESOURCE_GROUP))
+      run:
+        path: bash
+        args: 
+        - -c
+        - |
+          cd aks-automatic-shutdown-git/task-scripts/automatic-cluster-shutdown
+          chmod +x change_cluster_state.sh
+          ./change_cluster_state.sh start
+

@@ -1,0 +1,45 @@
+resources:
+- name: aks-automatic-shutdown-git
+  type: git
+  source:
+    branch: main
+    uri: https://github.com/CiucurDaniel/aks-automatic-shutdown
+    paths: 
+    - automatic-cluster-shutdown
+    - task-scripts/automatic-cluster-shutdown
+
+jobs:
+# Set and update self (parent pipeline)
+- name: set-self
+  plan:
+  - get: aks-automatic-shutdown-git
+    trigger: true
+
+  - set_pipeline: self
+    file: aks-automatic-shutdown-git/pipelines/automatic-cluster-shutdown/parent.yaml
+
+# Set and update child pipelines
+# Instead of having every pipeline update itself, pipelines are updated through their parent pipeline
+- name: build-and-set-pipelines
+  plan:
+  - in_parallel:
+      limit: 4
+      fail_fast: true
+      steps:
+      - get: aks-automatic-shutdown-git
+        trigger: true
+        passed: [set-self]
+
+  - load_var: config
+    file: aks-automatic-shutdown-git/pipelines/automatic-cluster-shutdown/config.json
+
+  - set_pipeline: ((.:config-input.stage))-automatic-cluster-shutdown
+    file: aks-automatic-shutdown-git/pipelines/automatic-cluster-shutdown/automatic-cluster-shutdown-template.yaml
+    vars:
+      CLUSTER_NAME: ((.:config-input.cluster_name))
+      RESOURCE_GROUP: ((.:config-input.resource_group))
+      STAGE: ((.:config-input.stage))
+    across:
+    - var: config-input
+      values: ((.:config))
+
